@@ -1,3 +1,4 @@
 *.sw[pon]
 *.pyc
 env/*
+*.DS_Store
