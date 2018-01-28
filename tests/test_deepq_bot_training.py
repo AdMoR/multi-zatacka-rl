@@ -3,15 +3,22 @@ import numpy as np
 from game_content.deepq_bot import AbstractDeepQGameAdapter
 from game_content.zatacka import Grid
 
+GRID_SIZE = 5
+
 class DummyGameDeepQ(AbstractDeepQGameAdapter):
 
     def __init__(self):
-        AbstractDeepQGameAdapter.__init__(game_size=(7, 7), num_layers=2, action_size=5)
-        self.grid = Grid(7, 7)
-        self.grid.set(2, 2, 1)
+        AbstractDeepQGameAdapter.__init__(self, game_size=(GRID_SIZE, GRID_SIZE),
+                                          num_layers=2, action_size=5)
+        self.id = 1
+        self.grid = Grid(GRID_SIZE, GRID_SIZE)
+        self.grid.set(int(GRID_SIZE / 2), int(GRID_SIZE / 2), 1)
+
+        # Commands 
+        self.command_to_action = {0: None, 1: "top", 2: "left", 3: "right", 4: 'bottom'}
 
         # Internals
-        self.action = None
+        self.command = None
         self.reward = 0
         self.time_step = 0
         self.score = 0
@@ -24,31 +31,35 @@ class DummyGameDeepQ(AbstractDeepQGameAdapter):
         self.navigate()
 
         # Set the reward
-        if self.grid.get(0, 0) == 1:
+        if self.grid.get(1, 1) == 1:
             self.reward = 1
         else:
             self.reward = 0
         self.score += self.reward
 
+        if self.time_step > self.buffer_size + self.time_frame_size:
+            self.network_backward()
+
         self.time_step += 1
 
     def index_to_command(self, action):
-        command_to_action = {0: None, 1: "top", 2: "left", 3: "right", 4: 'bottom'}
-        return command_to_action[action]
+        index = int(action.asnumpy()[0])
+        return self.command_to_action[index]
 
     def navigate(self):
-        list_y, list_x = np.where(np.array(self.grid.grid))
+        list_y, list_x = np.where(np.array(self.grid.grid) == 1)
         y, x = list_y[0], list_x[0]
-        self.grid.set(x, y, 0)
-
-        if self.action == "top":
+        self.grid = Grid(GRID_SIZE, GRID_SIZE)
+        if self.command == "top":
             self.grid.set(x, y + 1, 1)
-        elif self.action == "bottom":
+        elif self.command == "bottom":
             self.grid.set(x, y - 1, 1)
-        elif self.action == "left":
+        elif self.command == "left":
             self.grid.set(x + 1, y, 1)
-        else:
+        elif self.command == "right":
             self.grid.set(x - 1, y, 1)
+        else:
+            self.grid.set(x, y, 1)
 
 
 class TestDeepQTrainingOnDummyGame(TestCase):
@@ -58,19 +69,19 @@ class TestDeepQTrainingOnDummyGame(TestCase):
 
     def test_one_step(self):
 
-        self.assertEqual(self.bot.action, None, "Bot was not correctly initialized")
+        self.assertEqual(self.bot.command, None, "Bot was not correctly initialized")
         self.bot.process()
         self.bot.update()
-        self.assertIsNotNone(self.bot.action, "Didn't create an action")
+        self.assertIsNotNone(self.bot.command, "Didn't create an action")
 
     def test_strategy_learning(self):
 
-        n_iter = 10000
+        n_iter = 20000
         for i in range(n_iter):
-
+            print(i)
             self.bot.process()
             self.bot.update()
-
-        print(float(self.bot.score) / n_iter)
+            print(float(self.bot.score) / n_iter)
+        assert False
 
 

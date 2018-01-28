@@ -48,19 +48,20 @@ class GridReplayAdapter(AbstractReplayAdapter):
         We chose a set of random t from the reward history
         from it we retrieve the corresponding phi_t,phi_t+1 and a_t
         """
-
+        print(batch_size, self.action_size)
         replay_dict = {"state": nd.zeros((batch_size, self.time_frame_size,
                                           self.game_size[0], self.game_size[1])),
                        "state_plus_one": nd.zeros((batch_size, self.time_frame_size,
                                                    self.game_size[0], self.game_size[1])),
-                       "actions": nd.zeros(batch_size, self.action_size),
-                       "rewards": nd.zeros(batch_size, 1)}
+                       "actions": nd.zeros((batch_size, self.action_size)),
+                       "rewards": nd.zeros((batch_size, 1))}
 
-        for i, t in enumerate(self.reward.keys()):
-            replay_dict["state"][i, :, :, :] = self.phi_history[t]
-            replay_dict["state_plus_one"][i, :, :, :] = self.phi_history[t + 1]
-            replay_dict["actions"][i, self.action_history[t]] = 1
-            replay_dict["rewards"][i] = self.reward[t]
+        for i, t in enumerate(self.reward_history.keys()):
+            print(i, t, self.phi_history.keys())
+            replay_dict["st"][i, :, :, :] = self.phi_history[t]
+            replay_dict["stpo"][i, :, :, :] = self.phi_history[t + 1]
+            replay_dict["at"][i, self.action_history[t]] = 1
+            replay_dict["rt"][i] = self.reward[t]
 
         return replay_dict
 

@@ -10,7 +10,7 @@ class AbstractDeepQGameAdapter(object):
 
     def __init__(self, buffer_size=10, time_frame_size=10,
                  game_size=(80, 80), action_size=4, batch_size=10,
-                 gamma=0.9, ctx=mx.cpu(), num_layers=18):
+                 gamma=0.9, ctx=mx.cpu(), num_layers=2):
         """
         The double Q has this order for its steps
         1 : current state of the game
@@ -35,7 +35,7 @@ class AbstractDeepQGameAdapter(object):
         self.game_size = game_size
         self.network = DoubleQNetwork(batch_size, time_frame_size, game_size, action_size,
                                       ctx=ctx, gamma=gamma, num_layers=num_layers)
-        self.epsilon = 1.0
+        self.epsilon = 0.9
         self.batch_size = 10
 
         # Update and freeze parameter for the parameter changes
@@ -65,16 +65,14 @@ class AbstractDeepQGameAdapter(object):
         state = self.replay_adapter.build_phi_t(t=time_step)
 
         # This is the epsilon greedy switch
-        if random.random() > self.epsilon and state is not None:
-
-            # Get the network feature
-            V, A = self.network.q_forward(state)
+        if random.random() < self.epsilon and state is not None:
 
             # Retrieve action from advantage network
-            action = numpy.argmax(A.asnumpy())
+            action = self.network.get_action(state)
             self.command = self.index_to_command(action)
         else:
-            self.command = random.choice(self.commands)
+            print("random")
+            self.command = random.sample(list(self.command_to_action.values()), 1)[0]
             action = self.command
 
         # Store partial state of the game
@@ -121,11 +119,12 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
     """
 
     def __init__(self, id, buffer_size=10, time_frame_size=10,
-                 game_size=(80, 80), action_size=4, num_layers=4):
+                 game_size=(80, 80), action_size=4, num_layers=2):
         DeepQBotPlayer.__init__(id)
         AbstractDeepQGameAdapter.__init__(buffer_size, time_frame_size,
                                           game_size, action_size, num_layers=num_layers)
         self.is_human = False
+        self.command_to_action = {0: None, 1: "straight", 2: "left", 3: "right"}
 
     def process(self, message, game_state):
         '''
@@ -153,5 +152,4 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
             self.network.copy_to_freezed_network()
 
     def index_to_command(self, action):
-        command_to_action = {0: None, 1: "straight", 2: "left", 3: "right"}
-        return command_to_action[action]
+        return self.command_to_action[action]

@@ -163,11 +163,17 @@ def get_symbol(num_classes, num_layers, image_shape, conv_workspace=256, dtype='
         if num_layers >= 50:
             filter_list = [64, 256, 512, 1024, 2048]
             bottle_neck = True
-        else:
+        elif num_layers > 10:
             filter_list = [64, 64, 128, 256, 512]
             bottle_neck = False
-        num_stages = 4
-        if num_layers == 18:
+            num_stages = 4
+        else:
+            filter_list = [8, 32, 32]
+            bottle_neck = False
+            num_stages = 2
+        if num_layers in [2, 4, 8]:
+            units = [2, 2]
+        elif num_layers == 18:
             units = [2, 2, 2, 2]
         elif num_layers == 34:
             units = [3, 4, 6, 3]

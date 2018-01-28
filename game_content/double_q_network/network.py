@@ -22,11 +22,12 @@ class DoubleQNetwork(object):
     """
 
     def __init__(self, batch_size, time_frame_size, image_size, action_size,
-                 ctx=mx.cpu(), gamma=0.9, num_layers=3):
+                 ctx=mx.cpu(), gamma=0.9, num_layers=2):
 
         # Define some NN side parameters
         input_shape = (batch_size, time_frame_size, image_size[0], image_size[1])
         self.gamma = gamma
+        self.batch_size = batch_size
 
         # Build the base network from the symbols defined in the resnet class
         flat = get_symbol(num_classes=action_size, num_layers=num_layers,
@@ -46,6 +47,7 @@ class DoubleQNetwork(object):
 
         # The first module uses the symbols defined for the Q to build the yddqn target value
         self.target_q_mod = q_value.simple_bind(ctx=ctx, grad_req='write', data=input_shape)
+        self.infer_q_mod = q_value.simple_bind(ctx=ctx, grad_req='write', data=(1, time_frame_size, image_size[0], image_size[1]))
 
         # Now we have to build the loss function for the network update
         # There is a trick in this loss to get the correct forward Q
@@ -70,6 +72,16 @@ class DoubleQNetwork(object):
             clip_gradient=None,
             rescale_grad=1.0)
         self.updater = mx.optimizer.get_updater(self.optimizer)
+
+    def network_train(self, replay_history):
+        data = replay_history.build_phi_replay(self.batch_size)
+        self.train_one_batch(**data)
+
+    def get_action(self, st):
+        st = nd.expand_dims(st, axis=0)
+        a_q = self.infer_q_mod.forward(is_train=False, data=st)
+        a = nd.argmax_channel(a_q[0])
+        return a
 
     def train_one_batch(self, st, stpo, at, rt, tt, unfreeze_weight=False):
         """
@@ -104,7 +116,7 @@ class DoubleQNetwork(object):
         self.update_weights(self.loss_q_mod, self.updater)
 
         # 4 : Calculate the loss
-        loss = nd.sum((y_ddqn - nd.choose_element_0index(current_q[0], a)) ** 2, axis=0)
+        loss = nd.sum((y_ddqn - nd.choose_element_0index(current_q[0], at)) ** 2, axis=0)
 
         # 5 : the occasional forward weight updater
         if unfreeze_weight:
@@ -116,9 +128,9 @@ class DoubleQNetwork(object):
         """
         Every n steps, the y_ddqn net is supposed  to refresh its parameters
         """
-        main_net_params = {k: v for k, v in self.loss_q_mod.arg_dict.iteritems()
+        main_net_params = {k: v for k, v in self.loss_q_mod.arg_dict.items()
                            if k in self.target_q_mod.arg_dict.keys()}
-        main_net_aux = {k: v for k, v in self.loss_q_mod.aux_dict.iteritems()
+        main_net_aux = {k: v for k, v in self.loss_q_mod.aux_dict.items()
                         if k in self.target_q_mod.aux_dict.keys()}
         self.target_q_mod.copy_params_from(arg_params=main_net_params, aux_params=main_net_aux)
 
