@@ -1,19 +1,21 @@
-from .abstract_player import Snake, COLORS
+from abc import abstractmethod
 from .bot import BotPlayer
 import random
-import math
-from .double_q_network import ZatackaReplayAdapter
 import numpy
+import mxnet as mx
+from .double_q_network import GridReplayAdapter, DoubleQNetwork
 
 
-class DeepQBotPlayer(BotPlayer):
+class AbstractDeepQGameAdapter(object):
 
-    def __init__(self, id, buffer_size=10, time_frame_size=10, game_size=(80, 80), action_size=4):
+    def __init__(self, buffer_size=10, time_frame_size=10,
+                 game_size=(80, 80), action_size=4, batch_size=10,
+                 gamma=0.9, ctx=mx.cpu(), num_layers=18):
         """
         The double Q has this order for its steps
         1 : current state of the game
         2 : get the action depending on the state at time t
-        3 : collect the new state after all the player have moved in update s_t+1
+        3 : collect the new state after all the players have moved in update s_t+1
         4 : get the reward at time t r_t
 
         However given the flow of the bot calls the order is : ??????????
@@ -25,15 +27,14 @@ class DeepQBotPlayer(BotPlayer):
         action[t] is seen two times in the process but should be registered only once
         Thus it will be done in the update step
         """
-        super(DeepQBotPlayer, self).__init__(id)
-        self.is_human = False
-        self.replay_adapter = ZatackaReplayAdapter(buffer_size, time_frame_size,
-                                                   game_size, action_size)
+        self.replay_adapter = GridReplayAdapter(buffer_size, time_frame_size,
+                                                game_size, action_size)
         self.commands = range(action_size)
         self.buffer_size = buffer_size
         self.time_frame_size = time_frame_size
         self.game_size = game_size
-        self.network = None
+        self.network = DoubleQNetwork(batch_size, time_frame_size, game_size, action_size,
+                                      ctx=ctx, gamma=gamma, num_layers=num_layers)
         self.epsilon = 1.0
         self.batch_size = 10
 
@@ -41,22 +42,29 @@ class DeepQBotPlayer(BotPlayer):
         self.update_time = 1000
         self.freeze_time = 1000
 
-    def process(self, message, game_state):
-        '''
-        Bots dont pass message from the interface
-        They process the last state of the grid
-        '''
+    def process_game_state(self, game_state, time_step, score):
+        """
+        In order to have everything working in one step, the reward from past
+        grid update is stored now,
+        The rest works pretty smoothly, get grid_t, action_t and grid_t+1
 
+        :param game_state:
+        :param time_step:
+        :param score:
+        :return:
+        """
         # We are at time t
         # According to the process defined above, we register reward t-1
 
-        self.time_step = message
-        self.replay_adapter.store_reward_in_history(self.score, self.time_step - 1)
-        self.replay_adapter.store_grid_in_history(grid=game_state.grid, t=self.time_step, player=self)
+        self.time_step = time_step
+        self.replay_adapter.store_reward_in_history(score, time_step - 1)
+        self.replay_adapter.store_grid_in_history(grid=game_state.grid, t=time_step, player=self)
 
         # Retrieve grid feature to feed the network if possible and not random step
         # We have already the state t in memory from last round
-        state = self.replay_adapter.build_phi_t(t=self.time_step)
+        state = self.replay_adapter.build_phi_t(t=time_step)
+
+        # This is the epsilon greedy switch
         if random.random() > self.epsilon and state is not None:
 
             # Get the network feature
@@ -72,6 +80,62 @@ class DeepQBotPlayer(BotPlayer):
         # Store partial state of the game
         self.replay_adapter.store_action_in_history(action=action, t=self.time_step)
 
+    def network_backward(self):
+        """
+        Function used to learn something to the Q_net
+        """
+        # The replay adapter retrieved batch size game state ( time_frame * grid_size )
+        # We have then a batch_size * time_frame * grid_size * grid_size
+        # The target is laso defined in this function as the error on the discounted reward
+        # Dy ~ || Rt + gamma * Qt+1 - Qt ||
+        # Dy = || Rt + gamma *
+        data_dict = self.replay_adapter.build_phi_replay(self.batch_size)
+        self.network.backward_pass(**data_dict)
+
+    @abstractmethod
+    def index_to_command(self, action):
+        """
+        The Q network returns something in the self.command from an index
+        This is used to make the proper conversion
+        """
+        pass
+
+
+
+class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
+    """
+    The double Q has this order for its steps
+    1 : current state of the game
+    2 : get the action depending on the state at time t
+    3 : collect the new state after all the players have moved in update s_t+1
+    4 : get the reward at time t r_t
+
+    However given the flow of the bot calls the order is : ??????????
+    reward, state, next_action, next_state
+    In other words we store : reward[t-1] state[t] action[t]
+    On update, we can get the transition at t-1
+
+
+    action[t] is seen two times in the process but should be registered only once
+    Thus it will be done in the update step
+    """
+
+    def __init__(self, id, buffer_size=10, time_frame_size=10,
+                 game_size=(80, 80), action_size=4, num_layers=4):
+        DeepQBotPlayer.__init__(id)
+        AbstractDeepQGameAdapter.__init__(buffer_size, time_frame_size,
+                                          game_size, action_size, num_layers=num_layers)
+        self.is_human = False
+
+    def process(self, message, game_state):
+        '''
+        Bots dont pass message from the interface
+        They process the last state of the grid
+        '''
+
+        # The time and score are assigned from the game through the Player interface
+        self.process_game_state(game_state, self.time_step, self.score)
+
     def update(self, grid):
         # Do the drawing etc
         super(DeepQBotPlayer, self).update(grid)
@@ -82,19 +146,12 @@ class DeepQBotPlayer(BotPlayer):
 
         if self.time_step % self.update_time == 0 and\
            self.time_step > self.buffer_size + self.time_frame_size:
-            # Here get the backward
-            data_dict = self.replay_adapter.build_phi_replay(self.batch_size)
-            self.network.backward_pass(**data_dict)
+            self.network_backward()
 
         if self.time_step % self.freeze_time == 0:
             # Freeze the parameters learnt and change the forward network
-            do_stuff = 1
+            self.network.copy_to_freezed_network()
 
     def index_to_command(self, action):
         command_to_action = {0: None, 1: "straight", 2: "left", 3: "right"}
         return command_to_action[action]
-
-
-
-
-

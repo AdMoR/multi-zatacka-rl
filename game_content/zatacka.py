@@ -15,7 +15,7 @@ class Grid(object):
         self.grid = self.empty_grid(width, height)
 
     def empty_grid(self, w, h):
-        return [[0] * h for _ in xrange(w)]
+        return [[0] * w for _ in range(h)]
 
     def get(self, x, y):
         if self.wrap:
@@ -71,7 +71,7 @@ class Zatacka(object):
             'name': player.name,
             'score': player.score,
             'color': player.color,
-            } for player in self.players]
+                    } for player in self.players]
         self.send(client, {'type': 'players', 'content': players})
 
     def send_size(self, client):
@@ -129,7 +129,7 @@ class Zatacka(object):
 
         for player in alive_players:
             if not player.is_human:
-                player.process(self.frame, self.grid)
+                player.process(None, self.grid)
 
         for player in alive_players:
             player.update(self.grid)

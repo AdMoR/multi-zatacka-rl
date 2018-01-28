@@ -22,7 +22,7 @@ class AbstractReplayAdapter(object):
         pass
 
 
-class ZatackaReplayAdapter(AbstractReplayAdapter):
+class GridReplayAdapter(AbstractReplayAdapter):
 
     def __init__(self, buffer_size, time_frame_size, game_size, action_size):
         # Vars used on the NN side to store data as mx.nd

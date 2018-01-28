@@ -52,7 +52,7 @@ class ZatackaPlayground(Zatacka):
         self.spawn_bots()
         print("Game created and bot spawned !")
 
-    def run_bot_training(self, context=False, nb_loops=10000):
+    def run_bot_training(self, context=None, nb_loops=10000):
         """
         Master loop of the game :
         Handles the games and runs the step

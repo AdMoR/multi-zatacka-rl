@@ -4,18 +4,15 @@ import numpy as np
 import mxnet.ndarray as nd
 import mxnet as mx
 import copy
-sys.path.append('../..')
-from game_content.double_q_network import ZatackaReplayAdapter, DoubleQZatacka
+from unittest import TestCase
+from game_content.double_q_network import GridReplayAdapter, DoubleQNetwork
 from game_content import ZatackaPlayground, Grid
 
 
-class TestZatackaReplay(object):
+class TestZatackaReplay(TestCase):
     '''
     Class testing the Zatack replay.
     '''
-
-    def __init__(self, session_id=None):
-        self.name = 'lol'
 
     def test_game_replaying(self):
 
@@ -30,7 +27,8 @@ class TestZatackaReplay(object):
         """
         Test if the backward training of the alg is functionning
         """
-        dqzat = DoubleQZatacka(batch_size=10, time_frame_size=6, image_size=(300, 300), action_size=3)
+        dqzat = DoubleQNetwork(batch_size=10, time_frame_size=6,
+                               image_size=(300, 300), action_size=3)
 
         st = nd.zeros((10, 6, 300, 300))
         stpo = nd.zeros((10, 6, 300, 300))
@@ -41,6 +39,3 @@ class TestZatackaReplay(object):
         print(loss)
 
 
-test = TestZatackaReplay()
-#test.test_game_replaying()
-test.test_batch_learn_network()
