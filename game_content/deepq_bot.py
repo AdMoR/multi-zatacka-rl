@@ -118,13 +118,15 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
     Thus it will be done in the update step
     """
 
-    def __init__(self, id, buffer_size=10, time_frame_size=10,
+    def __init__(self, id_, buffer_size=10, time_frame_size=10,
                  game_size=(80, 80), action_size=4, num_layers=2):
-        DeepQBotPlayer.__init__(id)
-        AbstractDeepQGameAdapter.__init__(buffer_size, time_frame_size,
+        BotPlayer.__init__(self, id_)
+        AbstractDeepQGameAdapter.__init__(self, buffer_size, time_frame_size,
                                           game_size, action_size, num_layers=num_layers)
         self.is_human = False
         self.command_to_action = {0: None, 1: "straight", 2: "left", 3: "right"}
+        self.time_step = 0
+        self.score = 0
 
     def process(self, message, game_state):
         '''

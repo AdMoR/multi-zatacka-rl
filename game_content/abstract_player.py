@@ -43,8 +43,8 @@ class Snake(object):
     def update_grid(self, grid):
         x = self.old_x
         y = self.old_y
-        for w in xrange(2 * self.radius):
-            for h in xrange(2 * self.radius):
+        for w in range(2 * self.radius):
+            for h in range(2 * self.radius):
                 xx = int(round(x - self.radius + w))
                 yy = int(round(y - self.radius + h))
                 grid.set(xx, yy, self.id)
@@ -52,10 +52,10 @@ class Snake(object):
     def collision(self, grid):
         sensors_x = [int(round(
             self.x + self.radius * math.cos(self.direction + math.pi * i / 6)))
-            for i in xrange(-2, 3)]
+            for i in range(-2, 3)]
         sensors_y = [int(round(
             self.y - self.radius * math.sin(self.direction + math.pi * i / 6)))
-            for i in xrange(-2, 3)]
+            for i in range(-2, 3)]
 
         if any(grid.get(x, y) for (x, y) in zip(sensors_x, sensors_y)):
             s = ''
