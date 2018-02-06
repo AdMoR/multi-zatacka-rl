@@ -16,14 +16,9 @@ class BotPlayer(Player):
         They process the last state of the grid
         '''
 
-        projection = (self.snake.x, self.snake.y) +\
-                     5 * self.snake.speed * (math.cos(self.snake.direction),
-                                             math.sin(self.snake.direction))
-
-        pass
+        raise NotImplemented
 
     def update(self, grid):
-        self.command = random.choice(['left', 'right', 'straight'])
         if not self.alive:
             return
         if self.command == 'left':

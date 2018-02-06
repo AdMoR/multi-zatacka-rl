@@ -1,4 +1,4 @@
-from abc import abstractmethod
+from abc import abstractmethod, ABCMeta
 from .bot import BotPlayer
 import random
 import numpy
@@ -6,7 +6,7 @@ import mxnet as mx
 from .double_q_network import GridReplayAdapter, DoubleQNetwork
 
 
-class AbstractDeepQGameAdapter(object):
+class AbstractDeepQGameAdapter(object, metaclass=ABCMeta):
 
     def __init__(self, buffer_size=10, time_frame_size=10,
                  game_size=(80, 80), action_size=4, batch_size=10,
@@ -42,7 +42,7 @@ class AbstractDeepQGameAdapter(object):
         self.update_time = 1000
         self.freeze_time = 1000
 
-    def process_game_state(self, game_state, time_step, score):
+    def process_game_state(self, game_state, time_step, score, alive):
         """
         In order to have everything working in one step, the reward from past
         grid update is stored now,
@@ -58,6 +58,7 @@ class AbstractDeepQGameAdapter(object):
 
         self.time_step = time_step
         self.replay_adapter.store_reward_in_history(score, time_step - 1)
+        self.replay_adapter.store_death_in_history(alive, time_step - 1)
         self.replay_adapter.store_grid_in_history(grid=game_state.grid, t=time_step, player=self)
 
         # Retrieve grid feature to feed the network if possible and not random step
@@ -68,17 +69,16 @@ class AbstractDeepQGameAdapter(object):
         if random.random() < self.epsilon and state is not None:
 
             # Retrieve action from advantage network
-            action = self.network.get_action(state)
-            self.command = self.index_to_command(action)
+            action = int(self.network.get_action(state).asnumpy()[0])
         else:
             print("random")
-            self.command = random.sample(list(self.command_to_action.values()), 1)[0]
-            action = self.command
+            action = random.sample(list(self.command_to_action.keys()), 1)[0]
+        self.command = self.index_to_command(action)
 
         # Store partial state of the game
-        self.replay_adapter.store_action_in_history(action=action, t=self.time_step)
+        self.replay_adapter.store_action_in_history(action=action, t=time_step)
 
-    def network_backward(self):
+    def network_backward(self, time_step):
         """
         Function used to learn something to the Q_net
         """
@@ -87,8 +87,8 @@ class AbstractDeepQGameAdapter(object):
         # The target is laso defined in this function as the error on the discounted reward
         # Dy ~ || Rt + gamma * Qt+1 - Qt ||
         # Dy = || Rt + gamma *
-        data_dict = self.replay_adapter.build_phi_replay(self.batch_size)
-        self.network.backward_pass(**data_dict)
+        data_dict = self.replay_adapter.build_phi_replay(self.batch_size, time_step)
+        self.network.train_one_batch(**data_dict)
 
     @abstractmethod
     def index_to_command(self, action):
@@ -126,7 +126,7 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
         self.is_human = False
         self.command_to_action = {0: None, 1: "straight", 2: "left", 3: "right"}
         self.time_step = 0
-        self.score = 0
+        self.reward = 0
 
     def process(self, message, game_state):
         '''
@@ -135,11 +135,11 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
         '''
 
         # The time and score are assigned from the game through the Player interface
-        self.process_game_state(game_state, self.time_step, self.score)
+        self.process_game_state(game_state, self.time_step, self.reward, int(self.alive))
 
     def update(self, grid):
         # Do the drawing etc
-        super(DeepQBotPlayer, self).update(grid)
+        BotPlayer.update(self, grid)
         pass
 
         # Here we have all the data for transition at t-1
@@ -147,7 +147,7 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
 
         if self.time_step % self.update_time == 0 and\
            self.time_step > self.buffer_size + self.time_frame_size:
-            self.network_backward()
+            self.network_train()
 
         if self.time_step % self.freeze_time == 0:
             # Freeze the parameters learnt and change the forward network
@@ -155,3 +155,4 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
 
     def index_to_command(self, action):
         return self.command_to_action[action]
+

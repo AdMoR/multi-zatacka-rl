@@ -1,10 +1,11 @@
+from abc import abstractmethod, ABCMeta
 import mxnet as mx
 import mxnet.ndarray as nd
 import numpy
 import random
 
 
-class AbstractReplayAdapter(object):
+class AbstractReplayAdapter(object, metaclass=ABCMeta):
     """
     Class handling the replays
     """
@@ -12,13 +13,8 @@ class AbstractReplayAdapter(object):
     def __init__(self, time_frame_size):
         pass
 
-    def add_record(self, st, at, rt, stpo):
-        """
-        Record the state, the next state, the action chosen and the reward
-        """
-        pass
-
-    def get_replay_state(self, batch_size):
+    @abstractmethod
+    def build_phi_replay(self, batch_size):
         pass
 
 
@@ -36,44 +32,47 @@ class GridReplayAdapter(AbstractReplayAdapter):
         self.grid_history = {}
         self.action_history = {}
         self.reward_history = {}
+        self.termination_history = {}
         self.phi_history = {}
 
         # Performance logging
         # TODO : not used yet
         self.loss_history = {}
 
-    def build_phi_replay(self, batch_size):
+    def build_phi_replay(self, batch_size, time_step):
         """
         This function creates a random minibatch from the play history
         We chose a set of random t from the reward history
         from it we retrieve the corresponding phi_t,phi_t+1 and a_t
         """
         print(batch_size, self.action_size)
-        replay_dict = {"state": nd.zeros((batch_size, self.time_frame_size,
+        replay_dict = {"st": nd.zeros((batch_size, self.time_frame_size,
                                           self.game_size[0], self.game_size[1])),
-                       "state_plus_one": nd.zeros((batch_size, self.time_frame_size,
+                       "stpo": nd.zeros((batch_size, self.time_frame_size,
                                                    self.game_size[0], self.game_size[1])),
-                       "actions": nd.zeros((batch_size, self.action_size)),
-                       "rewards": nd.zeros((batch_size, 1))}
+                       "at": nd.zeros((batch_size, self.action_size)),
+                       "rt": nd.zeros((batch_size, 1)),
+                       "tt": nd.ones((batch_size, 1))}
 
-        for i, t in enumerate(self.reward_history.keys()):
+        for i, t in zip(range(batch_size), range(time_step - batch_size, time_step)):
             print(i, t, self.phi_history.keys())
             replay_dict["st"][i, :, :, :] = self.phi_history[t]
             replay_dict["stpo"][i, :, :, :] = self.phi_history[t + 1]
             replay_dict["at"][i, self.action_history[t]] = 1
-            replay_dict["rt"][i] = self.reward[t]
+            replay_dict["rt"][i] = self.reward_history[t]
 
         return replay_dict
 
-    ###################
-    #  History storage
-    ###################
+    #####################
+    #  History storage  #
+    #####################
 
     def store_grid_in_history(self, grid, t, player):
         """
         The grid type is a list of list
         It must be transformed to a player invariant view and a mxnet array to be used later
         """
+        print("Storing grid with timestep t {}".format(t))
         nd_grid = self._transform_grid_to_nd_mat(grid, player)
         self.grid_history[t] = nd_grid
 
@@ -81,13 +80,18 @@ class GridReplayAdapter(AbstractReplayAdapter):
         """
         Store each action after each time stamp
         """
+        print("Storing action {} with timestep t {}".format(action, t))
         self.action_history[t] = action
 
     def store_reward_in_history(self, reward, t):
         """
         Store the reward given by the game
         """
+        print("Storing reward {} with timestep t {}".format(reward, t))
         self.reward_history[t] = reward
+
+    def store_death_in_history(self, alive, t):
+        self.termination_history[t] = alive
 
     def build_phi_t(self, t):
         """

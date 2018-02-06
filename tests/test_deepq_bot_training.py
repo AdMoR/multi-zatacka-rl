@@ -1,4 +1,5 @@
 from unittest import TestCase
+import math
 import numpy as np
 from game_content.deepq_bot import AbstractDeepQGameAdapter
 from game_content.zatacka import Grid
@@ -20,31 +21,30 @@ class DummyGameDeepQ(AbstractDeepQGameAdapter):
         # Internals
         self.command = None
         self.reward = 0
+        self.alive = 1
         self.time_step = 0
         self.score = 0
 
     def process(self):
-        self.process_game_state(self.grid, self.time_step, self.reward)
+        self.process_game_state(self.grid, self.time_step, self.reward, self.alive)
 
     def update(self):
         # Move the player
         self.navigate()
 
         # Set the reward
-        if self.grid.get(1, 1) == 1:
-            self.reward = 1
-        else:
-            self.reward = 0
+        list_y, list_x = np.where(np.array(self.grid.grid) == 1)
+        y, x = list_y[0], list_x[0]
+        self.reward = math.exp(-(x + y) / 10.)
         self.score += self.reward
 
         if self.time_step > self.buffer_size + self.time_frame_size:
-            self.network_backward()
+            self.network_backward(self.time_step)
 
         self.time_step += 1
 
     def index_to_command(self, action):
-        index = int(action.asnumpy()[0])
-        return self.command_to_action[index]
+        return self.command_to_action[action]
 
     def navigate(self):
         list_y, list_x = np.where(np.array(self.grid.grid) == 1)
@@ -78,10 +78,8 @@ class TestDeepQTrainingOnDummyGame(TestCase):
 
         n_iter = 20000
         for i in range(n_iter):
-            print(i)
             self.bot.process()
             self.bot.update()
-            print(float(self.bot.score) / n_iter)
         assert False
 
 
