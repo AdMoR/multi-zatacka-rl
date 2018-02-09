@@ -27,6 +27,7 @@ class DummyGameDeepQ(AbstractDeepQGameAdapter):
 
     def process(self):
         self.process_game_state(self.grid, self.time_step, self.reward, self.alive)
+        print('ok')
 
     def update(self):
         # Move the player
@@ -35,7 +36,7 @@ class DummyGameDeepQ(AbstractDeepQGameAdapter):
         # Set the reward
         list_y, list_x = np.where(np.array(self.grid.grid) == 1)
         y, x = list_y[0], list_x[0]
-        self.reward = math.exp(-(x + y) / 10.)
+        self.reward = math.exp(-(x + y) / 2.5)
         self.score += self.reward
 
         if self.time_step > self.buffer_size + self.time_frame_size:
@@ -76,10 +77,11 @@ class TestDeepQTrainingOnDummyGame(TestCase):
 
     def test_strategy_learning(self):
 
-        n_iter = 20000
+        n_iter = 200
         for i in range(n_iter):
             self.bot.process()
             self.bot.update()
+            print(self.bot.reward, self.bot.command)
         assert False
 
 

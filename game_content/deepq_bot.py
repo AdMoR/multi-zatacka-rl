@@ -35,7 +35,7 @@ class AbstractDeepQGameAdapter(object, metaclass=ABCMeta):
         self.game_size = game_size
         self.network = DoubleQNetwork(batch_size, time_frame_size, game_size, action_size,
                                       ctx=ctx, gamma=gamma, num_layers=num_layers)
-        self.epsilon = 0.9
+        self.epsilon = 0.5
         self.batch_size = 10
 
         # Update and freeze parameter for the parameter changes
@@ -140,7 +140,6 @@ class DeepQBotPlayer(AbstractDeepQGameAdapter, BotPlayer):
     def update(self, grid):
         # Do the drawing etc
         BotPlayer.update(self, grid)
-        pass
 
         # Here we have all the data for transition at t-1
         # (because we stored the reward from step t-1 on step t)

@@ -11,7 +11,10 @@ class DQNInitializer(mx.initializer.Xavier):
     def _init_bias(self, _, arr):
         arr[:] = .1
 
-    def _init_default(self, name, _):
+    def _init_weight(self, _, arr):
+        arr[:] = 0.1
+
+    def _init_default(self, _, arr):
         pass
 
 
@@ -22,7 +25,7 @@ class DoubleQNetwork(object):
     """
 
     def __init__(self, batch_size, time_frame_size, image_size, action_size,
-                 ctx=mx.cpu(), gamma=0.9, num_layers=2):
+                 ctx=mx.gpu(0), gamma=0.9, num_layers=2):
 
         # Define some NN side parameters
         input_shape = (batch_size, time_frame_size, image_size[0], image_size[1])
@@ -94,7 +97,6 @@ class DoubleQNetwork(object):
         From all the state needed for a forward backward,
         each sub result is calculated to reach the loss backward
         """
-
         # 1 : get the y_ddqn
         # The formula is Yddqn = Rt + Q(st+1, a*, theta-)
         # a) forward on the q vector (net with theta -)
@@ -103,13 +105,14 @@ class DoubleQNetwork(object):
         a_q = self.loss_q_mod.forward(is_train=False, data=stpo)
         a = nd.argmax_channel(a_q[0])
         # c) combine q vec with the a*
-        y_ddqn = rt + (1.0 - tt) * self.gamma * nd.choose_element_0index(target_q[0], a)
+        y_ddqn = rt + self.gamma * (tt) * nd.choose_element_0index(target_q[0], a)
 
         # 2 : build the loss on the current batch
         # Here some optim is done with the full netwok loss waiting for a y_ddqn
         # The loss is just | y_ddqn - Q(st, at) |
         current_q = self.loss_q_mod.forward(is_train=True,
-                                            data=st, loss_action=at, loss_target=y_ddqn)
+                                            data=st, loss_action=a, loss_target=y_ddqn)
+        print(current_q[0], at, rt)
         self.loss_q_mod.backward()
 
         # 3 : Update parameters

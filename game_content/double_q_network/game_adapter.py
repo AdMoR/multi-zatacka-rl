@@ -45,20 +45,17 @@ class GridReplayAdapter(AbstractReplayAdapter):
         We chose a set of random t from the reward history
         from it we retrieve the corresponding phi_t,phi_t+1 and a_t
         """
-        print(batch_size, self.action_size)
         replay_dict = {"st": nd.zeros((batch_size, self.time_frame_size,
                                           self.game_size[0], self.game_size[1])),
                        "stpo": nd.zeros((batch_size, self.time_frame_size,
                                                    self.game_size[0], self.game_size[1])),
-                       "at": nd.zeros((batch_size, self.action_size)),
-                       "rt": nd.zeros((batch_size, 1)),
-                       "tt": nd.ones((batch_size, 1))}
-
-        for i, t in zip(range(batch_size), range(time_step - batch_size, time_step)):
-            print(i, t, self.phi_history.keys())
+                       "at": nd.zeros((batch_size,)),
+                       "rt": nd.zeros((batch_size,)),
+                       "tt": nd.ones((batch_size,))}
+        for i, t in zip(range(batch_size), random.sample(list(range(self.time_frame_size + 1, time_step)), batch_size)):
             replay_dict["st"][i, :, :, :] = self.phi_history[t]
             replay_dict["stpo"][i, :, :, :] = self.phi_history[t + 1]
-            replay_dict["at"][i, self.action_history[t]] = 1
+            replay_dict["at"][i] = self.action_history[t]
             replay_dict["rt"][i] = self.reward_history[t]
 
         return replay_dict
@@ -80,14 +77,14 @@ class GridReplayAdapter(AbstractReplayAdapter):
         """
         Store each action after each time stamp
         """
-        print("Storing action {} with timestep t {}".format(action, t))
+        #print("Storing action {} with timestep t {}".format(action, t))
         self.action_history[t] = action
 
     def store_reward_in_history(self, reward, t):
         """
         Store the reward given by the game
         """
-        print("Storing reward {} with timestep t {}".format(reward, t))
+        #print("Storing reward {} with timestep t {}".format(reward, t))
         self.reward_history[t] = reward
 
     def store_death_in_history(self, alive, t):
@@ -126,8 +123,6 @@ class GridReplayAdapter(AbstractReplayAdapter):
                 elif val == player.id:
                     self_view_grid[i][j] = 1
                 else:
-                    if debug:
-                        print(val)
                     self_view_grid[i][j] = -1
 
         return nd.array(numpy.array(self_view_grid))
